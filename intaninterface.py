@@ -1,18 +1,21 @@
 import socket
-
-from intanutil.header import (read_header,
-                              header_to_result)
-from intanutil.data import (calculate_data_size,
-                            read_all_data_blocks,
-                            check_end_of_file,
-                            parse_data,
-                            data_to_result)
-from intanutil.filter import apply_notch_filter
+from time import sleep
+import numpy as np
+import matplotlib.pyplot as plt
 
 HOST = '127.0.0.1'
 PORT = 5001
 BUFFERSIZE = 200000
 FRAMES_PER_BLOCK = 128  
+
+def readUint32(array, arrayIndex):
+    """Reads 4 bytes from array as unsigned 32-bit integer.
+    """
+    variableBytes = array[arrayIndex: arrayIndex + 4]
+    variable = int.from_bytes(variableBytes, byteorder='little', signed=False)
+    arrayIndex = arrayIndex + 4
+    return variable, arrayIndex
+
 
 def readInt32(array, arrayIndex):
     """Reads 4 bytes from array as signed 32-bit integer.
@@ -31,28 +34,54 @@ def readUint16(array, arrayIndex):
     arrayIndex = arrayIndex + 2
     return variable, arrayIndex
 
-class InvalidMagicNumber(Exception):
-    """Exception returned when the first 4 bytes of a data block are not the
-    expected RHX TCP magic number (0x2ef07a08).
+def calibrate(socket, time=5):
+    """Time for calibration **per** action, i.e. if time=5, it is 5 seconds for resting and 5 seconds for flexing
+    
+    time: Time for calibration per action; thus, total calibration time is time * 2 (+ 16 seconds buffer/prep)
+    
+    Returns: 
     """
-
-class InvalidReceivedDataSize(Exception):
-    """Exception returned when the amount of data received on the TCP socket
-    is not an integer multiple of the excepted data block size.
-    """
-
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as intan:
-    intan.connect((HOST, PORT))
+    calibrations = []
+    modes = ["Resting", "Flexing"]
     
-    print(f"Connected to {HOST}:{PORT}")
+    # Run controller for 10 seconds for calibration
+    for mode in modes:
+        print(f"Running {mode} calibration for {time} seconds")
+        print("Beginning in 5 seconds...")
+        sleep(1)
+        print("4...")
+        sleep(1)
+        print("3...")
+        sleep(1)
+        print("2...")
+        sleep(1)
+        print("1...")
+        sleep(1)
+        print("Calibrating...")
+        
+        # socket.recv(BUFFERSIZE * (recordtime + 1))  # Clear Buffer
+        scommand.sendall(b'set runmode run')
+        sleep(recordtime)
+        scommand.sendall(b'set runmode stop')
+        print("Finished...")
+        sleep(2)
+        timestamps, data = readWaveform(socket, time)
+        
+        plt.plot(timestamps, data)
+        plt.title('Amplifier Data')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Voltage (uV)')
+        plt.show()
+        
+        potential = np.mean(np.abs(data))
+        print(f"{mode} Potential +/-:", potential)
+        sleep(3)
     
-    waveformBytesPerFrame = 4 + 2
-    waveformBytesPerBlock = FRAMES_PER_BLOCK * waveformBytesPerFrame + 4
-    
-    timestep = 1 / float(commandReturn[len(expectedReturnString):])
-    
+def readWaveform(socket, recordtime):
     # Read waveform data
-    rawData = intan.recv(BUFFERSIZE)
+    rawData = socket.recv(BUFFERSIZE * (recordtime + 1))
+    print(len(rawData))
+    print(waveformBytesPerBlock)
     if len(rawData) % waveformBytesPerBlock != 0:
         raise InvalidReceivedDataSize(
             'An unexpected amount of data arrived that is not an integer '
@@ -91,16 +120,65 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as intan:
 
             # Scale this sample to convert to microVolts
             amplifierData.append(0.195 * (rawSample - 32768))
+            
+    return amplifierTimestamps, amplifierData
+
+class GetSampleRateFailure(Exception):
+    """Exception returned when the TCP socket failed to yield the sample rate
+    as reported by the RHX software.
+    """
+
+class InvalidMagicNumber(Exception):
+    """Exception returned when the first 4 bytes of a data block are not the
+    expected RHX TCP magic number (0x2ef07a08).
+    """
+
+class InvalidReceivedDataSize(Exception):
+    """Exception returned when the amount of data received on the TCP socket
+    is not an integer multiple of the excepted data block size.
+    """
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as intan:
+    intan.connect((HOST, PORT))
+    print(f"Connected to {HOST}:{PORT}")
+    
+    print('Connecting to TCP command server...')
+    scommand = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    scommand.connect(('127.0.0.1', 5000))
+    
+    ## Setup Intan Software
+    # Query runmode from RHX software.
+    scommand.sendall(b'get runmode')
+    commandReturn = str(scommand.recv(BUFFERSIZE), "utf-8")
+    
+    # If controller is running, stop it.
+    if commandReturn != "Return: RunMode Stop":
+        scommand.sendall(b'set runmode stop')
+        # Allow time for RHX software to accept this command before the next.
+        sleep(0.1)
+
+    # Query sample rate from RHX software.
+    scommand.sendall(b'get sampleratehertz')
+    commandReturn = str(scommand.recv(BUFFERSIZE), "utf-8")
+    expectedReturnString = "Return: SampleRateHertz "
+    # Look for "Return: SampleRateHertz N" where N is the sample rate.
+    if commandReturn.find(expectedReturnString) == -1:
+        raise GetSampleRateFailure(
+            'Unable to get sample rate from server.'
+        )
+    
+    waveformBytesPerFrame = (4 + 2)
+    waveformBytesPerBlock = FRAMES_PER_BLOCK * waveformBytesPerFrame + 4
+    
+    timestep = 1 / float(commandReturn[len(expectedReturnString):])
+    recordtime = 5
+    
+    calibrate(intan, recordtime)
 
     # If using matplotlib to plot is not desired,
     # the following plot lines can be removed.
     # Data is still accessible at this point in the amplifierTimestamps
     # and amplifierData.
-    plt.plot(amplifierTimestamps, amplifierData)
-    plt.title('A-010 Amplifier Data')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Voltage (uV)')
-    plt.show()
     
     # intan.bind((HOST, PORT))
     # intan.listen()
