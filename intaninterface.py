@@ -34,7 +34,7 @@ def readUint16(array, arrayIndex):
     arrayIndex = arrayIndex + 2
     return variable, arrayIndex
 
-def calibrate(socket, time=5):
+def calibrate(socket, time=5, numChannels=1):
     """Time for calibration **per** action, i.e. if time=5, it is 5 seconds for resting and 5 seconds for flexing
     
     time: Time for calibration per action; thus, total calibration time is time * 2 (+ 16 seconds buffer/prep)
@@ -65,7 +65,7 @@ def calibrate(socket, time=5):
         scommand.sendall(b'set runmode stop')
         print("Finished...")
         sleep(2)
-        timestamps, data = readWaveform(socket, time)
+        timestamps, data = readWaveform(socket, time, numChannels)
         
         plt.plot(timestamps, data)
         plt.title('Amplifier Data')
@@ -77,17 +77,17 @@ def calibrate(socket, time=5):
         print(f"{mode} Potential +/-:", potential)
         sleep(3)
     
-def readWaveform(socket, recordtime):
+def readWaveform(socket, recordtime, numChannels):
     # Read waveform data
-    rawData = socket.recv(BUFFERSIZE * (recordtime + 1))
-    print(len(rawData))
+    rawData = socket.recv(numChannels * BUFFERSIZE * (recordtime + 1))
+    print(len(rawData)) # Note: Each second at 30Hz = 129696 data points
     print(waveformBytesPerBlock)
-    if len(rawData) % waveformBytesPerBlock != 0:
+    if len(rawData) % (numChannels * waveformBytesPerBlock) != 0:
         raise InvalidReceivedDataSize(
             'An unexpected amount of data arrived that is not an integer '
             'multiple of the expected data size per block.'
         )
-    numBlocks = int(len(rawData) / waveformBytesPerBlock)
+    numBlocks = int(len(rawData) / (numChannels * waveformBytesPerBlock))
     print(numBlocks)
 
     # Index used to read the raw data that came in through the TCP socket.
@@ -167,13 +167,13 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as intan:
             'Unable to get sample rate from server.'
         )
     
-    waveformBytesPerFrame = (4 + 2)
-    waveformBytesPerBlock = FRAMES_PER_BLOCK * waveformBytesPerFrame + 4
+    waveformBytesPerFrame = 4 + 2   
+    waveformBytesPerBlock = FRAMES_PER_BLOCK * waveformBytesPerFrame + 4    # 4 bytes = magic number;
     
     timestep = 1 / float(commandReturn[len(expectedReturnString):])
-    recordtime = 5
+    recordtime = 1
     
-    calibrate(intan, recordtime)
+    calibrate(intan, recordtime, 2)
 
     # If using matplotlib to plot is not desired,
     # the following plot lines can be removed.
