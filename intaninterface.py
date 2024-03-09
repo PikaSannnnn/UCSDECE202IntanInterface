@@ -62,12 +62,12 @@ class IntanInterface:
         
         Returns: 
         """
-        calibrations = []
+        self.stds = {}
         modes = ["Resting", "Flexing"]
         
         # Run controller for 10 seconds for calibration
         for mode in modes:
-            print(f"Running {mode} calibration for {recordtime} seconds")
+            print(f"Running {mode} calibration for {recordtime} seconds. Please begin {mode}.")
             print("Beginning in 5 seconds...")
             sleep(1)
             for i in range(4, 0, -1):
@@ -76,9 +76,7 @@ class IntanInterface:
             print("Calibrating...")
             
             # run for `recordtime` amount of seconds
-            self.cmd.sendall(b'set runmode run')
-            sleep(recordtime)
-            self.cmd.sendall(b'set runmode stop')
+            self.record(recordtime)
             print("Finished...")
             sleep(2)
             
@@ -86,15 +84,54 @@ class IntanInterface:
             timestamps, data = self.readWaveform(recordtime)
             
             # Plot the data that was read
-            plt.plot(timestamps, data)
-            plt.title('Amplifier Data')
-            plt.xlabel('Time (s)')
-            plt.ylabel('Voltage (uV)')
-            plt.show()
+            # plt.plot(timestamps, data)
+            # plt.title('Amplifier Data')
+            # plt.xlabel('Time (s)')
+            # plt.ylabel('Voltage (uV)')
+            # plt.show()
             
-            potential = np.mean(np.abs(data))
-            print(f"{mode} Potential +/-:", potential)
+            # absdata = np.abs(data)
+            # potential = np.mean(absdata)
+            # self.stds[mode] = np.std(np.abs(data))
+            self.stds[mode] = np.std(data)
+            # print(f"{mode} Mean Potential: {potential}")
+            print(f"{mode} Std. Dev. Potential: {self.stds[mode]}")
+            abs_emg_signal = data
+            # abs_emg_signal = np.abs(data)
+
+            # Windowing: Divide the signal into windows (here, each window contains 3 samples)
+            window_size = 3
+            num_windows = len(data) // window_size
+
+            # Amplitude Calculation: Find the maximum absolute value in each window
+            window_amplitudes = [np.max(abs_emg_signal[i*window_size:(i+1)*window_size]) for i in range(num_windows)]
+
+            # Average Calculation: Compute the average amplitude
+            average_amplitude = np.mean(window_amplitudes)
+
+            print("Average Amplitude:", average_amplitude)
             sleep(3)
+
+        threshold_diff = (self.stds['Flexing'] - self.stds['Resting']) * 0.1
+        self.flexThresh = self.stds['Resting'] + threshold_diff
+        print(f"FlexThreshold: {self.flexThresh}")
+
+    def detectFlexing(self, timeframe=0.5):
+        timestamps, data = self.recordRead(timeframe)
+        std = np.std(data)
+        # std = np.std(np.abs(data))
+        print(std)
+
+        return std > self.flexThresh
+
+    def recordRead(self, recordtime):
+        self.record(recordtime)
+        return self.readWaveform(recordtime)
+
+    def record(self, recordtime):
+        self.cmd.sendall(b'set runmode run')
+        sleep(recordtime)
+        self.cmd.sendall(b'set runmode stop')
     
     def readWaveform(self, recordtime):
         waveformBytesPerFrame = 4 + (2 * self.numChannels)
@@ -147,4 +184,6 @@ class IntanInterface:
 
 if __name__ == "__main__":
     interface = IntanInterface(('127.0.0.1', 5000), ('127.0.0.1', 5001))
-    interface.setup(recordtime=1, numChannels=2)
+    interface.setup(recordtime=5, numChannels=1)
+    for _ in range(0, 4):
+        print(interface.detectFlexing(5))
