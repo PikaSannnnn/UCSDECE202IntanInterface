@@ -12,6 +12,7 @@ This is the Intan Interface for the white tiles demo for ECE202 Group 7. The pur
 ### Calibration:
 Calibration detects the standard deviation of potential of both resting and flexing. A lower threshold of which the standard deviation must exceed to be considered "flexing" is computed as a percentage between the two state's standard deviation. Two version of standard deviation were calculated, tested, and compared under three trials of the same sample EMG recording:
 1. `np.abs(data)`, where all potentials considered were absolute valued to find the std. dev. Trials 1 and 2 computes the threshold at 50%. Trials 3 and 4 computes the threshold at 25% and 10% respectively. This decision was made on the uniformity (specifically the observable pattern) such that we can expect resting standard deviation to always be relatively close to the calibrated resting standard deviation with some error.
+
 | Trial | Resting STD | Flexing STD | Threshold [\%] | Success Rate |
 | ----- | ----------- | ----------- | -------------- | ------------ |
 |   1   |  242.62885  |  267.21950  | 254.92418 [50\%] |     2/4      |
@@ -20,6 +21,7 @@ Calibration detects the standard deviation of potential of both resting and flex
 |   4   |  243.20143  |  266.22612  | 245.50391 [10\%] |     3/4      |
 
 2. Just `data` by itself were considered for the std. dev. Other parameters for each trial are the same as above.
+   
 | Trial | Resting STD | Flexing STD | Threshold [\%] | Success Rate |
 | ----- | ----------- | ----------- | -------------- | ------------ |
 |   1   |  453.70970  |  476.00338  | 464.85654 [50\%] |     1/4      |
