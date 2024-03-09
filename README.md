@@ -29,9 +29,9 @@ Calibration detects the standard deviation of potential of both resting and flex
 |   3   |  454.50418  |  474.86977  | 459.59558 [25\%] |     1/4      |
 |   4   |  453.80710  |  475.34262  | 455.96064 [10\%] |     1/4      |
 
-Why standard deviation? If we look at the following EMG recording plot for resting state:
+Why standard deviation? If we look at the following EMG recording plot for resting state:  
 ![Resting Sample](image.png)!
-We observe regular and smaller potential variance such that a pattern can be recognized. However, if we look at the EMG recording plot for flexing state:
+We observe regular and smaller potential variance such that a pattern can be recognized. However, if we look at the EMG recording plot for flexing state:  
 ![alt text](image-2.png)
 We can observe a more chaotic variance in the potentials such that we cannot observe a regular pattern. It becomes clear that the standard deviation is higher for the flexing state.
 
