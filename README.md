@@ -10,11 +10,14 @@ This is the Intan Interface for the white tiles demo for ECE202 Group 7. The pur
 * [ ] Link to game movements
 
 ### Sample Waveforms:
+<div style="display: flex;">
+    <img src="image.png">
 Figure 1: Resting Waveform
 ![Resting Sample](image.png)!
 
 Figure 2: Flexing Waveform
 ![Flexing Sample](image-2.png)
+</div>
 
 ### Calibration:
 #### Iteration 2 CWT Frequency-Time Power Mean Analysis:
@@ -22,7 +25,26 @@ The Spectrogram used for Lab 5 would not work for python when I tried implementi
 
 Our objective is to effectively measure the frequency of high power signals per time period and classify it as flexing or resting based whether it passes a threshold. After some research, it is found that CWT has high performance results and is effective for our objective in detecting the presence of high power signals at higher frequencies. I used this to help understand and implement the CWT components: https://www.youtube.com/watch?v=qoMDpSatG7M. All references for research are provided in the [references](#references).
 
-
+**Choosing the correct wavelet:**
+A graph of each different wavelets are provided. The same recording data and timestamps were used for each with 60% resting and 40% flexing. The recording used was pre-captured and is the same as the EMG recording used for Lab 5 W2-5pm, provided in the reference.
+<details>
+    <summary>Wavelets (Click to View Plots)</summary>
+    <ul>
+        <il><img src="wavelets\Screenshot 2024-03-09 221132.png" alt="cgau1"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221140.png" alt="cgau2"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221155.png" alt="cgau4"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221201.png" alt="cgau5"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221209.png" alt="cgau6"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221231.png" alt="cmor"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221240.png" alt="fbsp"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221249.png" alt="gaus1"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221303.png" alt="gaus2"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221329.png" alt="mexh"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221337.png" alt="morl"></li>
+        <il><img src="wavelets\Screenshot 2024-03-09 221347.png" alt="shannon"></li>
+    </ul>
+</details>
+Based on these plots, `mexh` waveform provides the clearest distinction betwen resting and flexing. This will be used to model all calibration and measuring.
 
 #### Iteration 1 Standard Deviation:
 **Notes**: Not reliable due to regular lower potentials in the waveform. Notice in both sets of trials, the standard deviation of thee flexing remained relatively close to the resting. This means at higher sample rates, the standard deviation is more likely to be incorrectly classified. This can be shown with association such that in these trial sets, the sample time was 5 seconds (the same as the calibration time), yet it still could not achieve 100% accuracy when needed. This same situation occurs with mean as it is related.
@@ -58,6 +80,7 @@ We can observe a more chaotic variance in the potentials such that we cannot obs
 * https://www.eurchembull.com/uploads/paper/6a9d85f5dbcc6a8a37b2fa3d8d2058f1.pdf
 * https://math.stackexchange.com/questions/279980/difference-between-fourier-transform-and-wavelets
 * https://www.youtube.com/watch?v=qoMDpSatG7M
+* [W2-5pm Omar's EMG](c:/Users/Pika-Sannnnn/Downloads/emg_lab_omar_bicep_240221_142714.rhd)
 
 ### Notes:
 Recorded data is in microV for potential over seconds

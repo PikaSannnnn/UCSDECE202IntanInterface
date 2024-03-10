@@ -2,6 +2,7 @@ import socket
 from intanutils import *
 from time import sleep
 import numpy as np
+import pywt
 import matplotlib.pyplot as plt
 
 HOST = '127.0.0.1'
@@ -53,7 +54,9 @@ class IntanInterface:
         
         self.timestep = 1 / float(commandReturn[len(expectedReturnString):])
         
-        self.calibrate(recordtime=recordtime)
+        # self.calibrations = []
+        # for _ in range(0, self.numChannels):
+        #     self.calibrations.append(self.calibrate(recordtime=recordtime))
 
     def calibrate(self, recordtime=1):
         """Time for calibration **per** action, i.e. if recordtime=5, it is 5 seconds for resting and 5 seconds for flexing
@@ -62,7 +65,7 @@ class IntanInterface:
         
         Returns: 
         """
-        self.stds = {}
+        calibrations = {}
         modes = ["Resting", "Flexing"]
         
         # Run controller for 10 seconds for calibration
@@ -89,40 +92,28 @@ class IntanInterface:
             # plt.xlabel('Time (s)')
             # plt.ylabel('Voltage (uV)')
             # plt.show()
-            
-            # absdata = np.abs(data)
-            # potential = np.mean(absdata)
-            # self.stds[mode] = np.std(np.abs(data))
-            self.stds[mode] = np.std(data)
-            # print(f"{mode} Mean Potential: {potential}")
-            print(f"{mode} Std. Dev. Potential: {self.stds[mode]}")
-            abs_emg_signal = data
-            # abs_emg_signal = np.abs(data)
 
-            # Windowing: Divide the signal into windows (here, each window contains 3 samples)
-            window_size = 3
-            num_windows = len(data) // window_size
-
-            # Amplitude Calculation: Find the maximum absolute value in each window
-            window_amplitudes = [np.max(abs_emg_signal[i*window_size:(i+1)*window_size]) for i in range(num_windows)]
-
-            # Average Calculation: Compute the average amplitude
-            average_amplitude = np.mean(window_amplitudes)
-
-            print("Average Amplitude:", average_amplitude)
+            absData = np.abs(data)
+            sortedAbsIndices = np.argsort(absData)
+            top25 = int(len(absData) * 0.05)
+            calibrations[mode] = np.mean(absData[sortedAbsIndices[-top25:]])
+            print(f"{mode} Mean Abs. Potential: {calibrations[mode]}")
             sleep(3)
 
-        threshold_diff = (self.stds['Flexing'] - self.stds['Resting']) * 0.1
-        self.flexThresh = self.stds['Resting'] + threshold_diff
-        print(f"FlexThreshold: {self.flexThresh}")
+        threshDiff = (calibrations['Flexing'] - calibrations['Resting']) * 0.25
+        self.flexThresh = calibrations['Resting'] + threshDiff
+        print(self.flexThresh)
 
-    def detectFlexing(self, timeframe=0.5):
+    def detectFlexing(self, timeframe=1):
         timestamps, data = self.recordRead(timeframe)
-        std = np.std(data)
-        # std = np.std(np.abs(data))
-        print(std)
+        absData = np.abs(data)
+        sortedAbsIndices = np.argsort(absData)
+        top25 = int(len(absData) * 0.25)
+        mean = np.mean(absData[sortedAbsIndices[:top25]])
+        # mean = np.mean(np.abs(data))
+        # print(mean)
 
-        return std > self.flexThresh
+        return mean > self.flexThresh
 
     def recordRead(self, recordtime):
         self.record(recordtime)
@@ -138,16 +129,16 @@ class IntanInterface:
         waveformBytesPerBlock = FRAMES_PER_BLOCK * waveformBytesPerFrame + 4    # 4 bytes = magic number;
         
         # Read waveform data
-        rawData = self.wave.recv(self.numChannels * BUFFERSIZE * (recordtime + 1))
-        print(len(rawData)) # Note: Each second at 30Hz = 129696 data points
-        print(waveformBytesPerBlock)
+        rawData = self.wave.recv(self.numChannels * BUFFERSIZE * (int(recordtime + 1)))
+        # print(len(rawData)) # Note: Each second at 30Hz = 129696 data points
+        # print(waveformBytesPerBlock)
         if len(rawData) % waveformBytesPerBlock != 0:
             raise InvalidReceivedDataSize(
                 'An unexpected amount of data arrived that is not an integer '
                 'multiple of the expected data size per block.'
             )
         numBlocks = int(len(rawData) / waveformBytesPerBlock)
-        print(numBlocks)
+        # print(numBlocks)
 
         # Index used to read the raw data that came in through the TCP socket.
         rawIndex = 0
@@ -180,10 +171,25 @@ class IntanInterface:
                 # Scale this sample to convert to microVolts
                 amplifierData.append(0.195 * (rawSample - 32768))
                 
-        return amplifierTimestamps, amplifierData
+        return np.array(amplifierTimestamps), np.array(amplifierData)
 
 if __name__ == "__main__":
     interface = IntanInterface(('127.0.0.1', 5000), ('127.0.0.1', 5001))
     interface.setup(recordtime=5, numChannels=1)
-    for _ in range(0, 4):
-        print(interface.detectFlexing(5))
+    # for _ in range(0, 6):
+    #     print(interface.detectFlexing(timeframe=4))
+    timestamps, data = interface.recordRead(recordtime=5)
+
+    scales = np.arange(1, 128, 4)
+    for wavelet in pywt.wavelist(kind='continuous'):
+        coef, freqs = pywt.cwt(data, scales, wavelet)
+
+        # Plot the wavelet power spectrum
+        plt.figure(figsize=(15, 10))
+        plt.imshow(np.abs(coef),
+                aspect='auto', cmap='jet', origin='lower')
+        plt.colorbar(label='Wavelet Power')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.title(f'{wavelet} Wavelet Power Spectrum of EMG Signal')
+        plt.show()
