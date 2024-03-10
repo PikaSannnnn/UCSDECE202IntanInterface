@@ -11,7 +11,9 @@ BUFFERSIZE = 200000
 FRAMES_PER_BLOCK = 128 
 
 class IntanInterface:
-    def __init__(self, cmdAddrPort, waveAddrPort):
+    def __init__(self, cmdAddrPort, waveAddrPort, focusFreq=25):
+        self.focusFreq = focusFreq
+
         # Connect to TCP command server - default home IP address at port 5000.
         print('Connecting to TCP command server...')
         self.cmd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -54,9 +56,9 @@ class IntanInterface:
         
         self.timestep = 1 / float(commandReturn[len(expectedReturnString):])
         
-        # self.calibrations = []
-        # for _ in range(0, self.numChannels):
-        #     self.calibrations.append(self.calibrate(recordtime=recordtime))
+        self.calibrations = []
+        for _ in range(0, self.numChannels):
+            self.calibrations.append(self.calibrate(recordtime=recordtime))
 
     def calibrate(self, recordtime=1):
         """Time for calibration **per** action, i.e. if recordtime=5, it is 5 seconds for resting and 5 seconds for flexing
@@ -86,32 +88,26 @@ class IntanInterface:
             # Read waveform
             timestamps, data = self.readWaveform(recordtime)
             
-            # Plot the data that was read
-            # plt.plot(timestamps, data)
-            # plt.title('Amplifier Data')
-            # plt.xlabel('Time (s)')
-            # plt.ylabel('Voltage (uV)')
-            # plt.show()
+            # Comptue CWT
+            coef, freq = self.computeCWT(data)
 
-            absData = np.abs(data)
-            sortedAbsIndices = np.argsort(absData)
-            top25 = int(len(absData) * 0.05)
-            calibrations[mode] = np.mean(absData[sortedAbsIndices[-top25:]])
-            print(f"{mode} Mean Abs. Potential: {calibrations[mode]}")
-            sleep(3)
+            # Comput mean at object's freq
+            mean = np.mean(np.abs(coef[self.focusFreq]))
+            print("Mean: ", mean)
+            calibrations[mode] = mean
 
-        threshDiff = (calibrations['Flexing'] - calibrations['Resting']) * 0.25
+        threshDiff = (calibrations['Flexing'] - calibrations['Resting']) * 0.5
         self.flexThresh = calibrations['Resting'] + threshDiff
-        print(self.flexThresh)
+        print("FlexThres: ", self.flexThresh)
 
     def detectFlexing(self, timeframe=1):
         timestamps, data = self.recordRead(timeframe)
-        absData = np.abs(data)
-        sortedAbsIndices = np.argsort(absData)
-        top25 = int(len(absData) * 0.25)
-        mean = np.mean(absData[sortedAbsIndices[:top25]])
-        # mean = np.mean(np.abs(data))
-        # print(mean)
+
+        # Comptue CWT
+        coef, freq = self.computeCWT(data)
+
+        # Comput mean at object's freq
+        mean = np.mean(np.abs(coef[self.focusFreq]))
 
         return mean > self.flexThresh
 
@@ -173,23 +169,22 @@ class IntanInterface:
                 
         return np.array(amplifierTimestamps), np.array(amplifierData)
 
+    def computeCWT(self, data):
+        scales = np.arange(1, 128, 4)
+        wavelet = 'mexh'
+
+        return pywt.cwt(data, scales, wavelet)
+
 if __name__ == "__main__":
     interface = IntanInterface(('127.0.0.1', 5000), ('127.0.0.1', 5001))
     interface.setup(recordtime=5, numChannels=1)
-    # for _ in range(0, 6):
-    #     print(interface.detectFlexing(timeframe=4))
-    timestamps, data = interface.recordRead(recordtime=5)
 
-    scales = np.arange(1, 128, 4)
-    for wavelet in pywt.wavelist(kind='continuous'):
-        coef, freqs = pywt.cwt(data, scales, wavelet)
+    expected = [True] * 15 + [False] * 9
+    measured = []
+    for _ in range(0, 24):
+        measured.append(interface.detectFlexing(timeframe=1))
 
-        # Plot the wavelet power spectrum
-        plt.figure(figsize=(15, 10))
-        plt.imshow(np.abs(coef),
-                aspect='auto', cmap='jet', origin='lower')
-        plt.colorbar(label='Wavelet Power')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Frequency (Hz)')
-        plt.title(f'{wavelet} Wavelet Power Spectrum of EMG Signal')
-        plt.show()
+    print(expected)
+    print(measured)
+    
+    print(sum([ex == me for ex, me in zip(expected, measured)]))
