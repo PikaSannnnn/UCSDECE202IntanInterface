@@ -7,11 +7,10 @@ import matplotlib.pyplot as plt
 
 HOST = '127.0.0.1'
 PORT = 5001
-BUFFERSIZE = 200000
-FRAMES_PER_BLOCK = 128 
 
 class IntanInterface:
-    def __init__(self, cmdAddrPort, waveAddrPort, focusFreq=25):
+    def __init__(self, cmdAddrPort, waveAddrPort, focusFreq=25, debug=False):
+        self.__debug = debug
         self.focusFreq = focusFreq
 
         # Connect to TCP command server - default home IP address at port 5000.
@@ -23,6 +22,12 @@ class IntanInterface:
         print('Connecting to TCP waveform server...')
         self.wave = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.wave.connect(waveAddrPort)
+        
+        # Init any constant vars NOTE: Change here to reflect to all objects
+        self.buffersize = 200000
+        self.frames_per_block = 128
+        self.wavelet = 'mexh'
+        self.threshRatio = 0.75
     
     def setup(self, **kwargs):
         """
@@ -36,7 +41,7 @@ class IntanInterface:
         ## Setup Intan Software
         # Query runmode from RHX software.
         self.cmd.sendall(b'get runmode')
-        commandReturn = str(self.cmd.recv(BUFFERSIZE), "utf-8")
+        commandReturn = str(self.cmd.recv(self.buffersize), "utf-8")
         
         # If controller is running, stop it.
         if commandReturn != "Return: RunMode Stop":
@@ -46,7 +51,7 @@ class IntanInterface:
 
         # Query sample rate from RHX software.
         self.cmd.sendall(b'get sampleratehertz')
-        commandReturn = str(self.cmd.recv(BUFFERSIZE), "utf-8")
+        commandReturn = str(self.cmd.recv(self.buffersize), "utf-8")
         expectedReturnString = "Return: SampleRateHertz "
         # Look for "Return: SampleRateHertz N" where N is the sample rate.
         if commandReturn.find(expectedReturnString) == -1:
@@ -93,10 +98,14 @@ class IntanInterface:
 
             # Comput mean at object's freq
             mean = np.mean(np.abs(coef[self.focusFreq]))
-            print("Mean: ", mean)
+            print("Mean Power: ", mean)
             calibrations[mode] = mean
+            
+            # Debug view CWT Spectrogram
+            if self.__debug:
+                self.viewCWT(coef)
 
-        threshDiff = (calibrations['Flexing'] - calibrations['Resting']) * 0.5
+        threshDiff = (calibrations['Flexing'] - calibrations['Resting']) * self.threshRatio
         self.flexThresh = calibrations['Resting'] + threshDiff
         print("FlexThres: ", self.flexThresh)
 
@@ -122,10 +131,10 @@ class IntanInterface:
     
     def readWaveform(self, recordtime):
         waveformBytesPerFrame = 4 + (2 * self.numChannels)
-        waveformBytesPerBlock = FRAMES_PER_BLOCK * waveformBytesPerFrame + 4    # 4 bytes = magic number;
+        waveformBytesPerBlock = self.frames_per_block * waveformBytesPerFrame + 4    # 4 bytes = magic number;
         
         # Read waveform data
-        rawData = self.wave.recv(self.numChannels * BUFFERSIZE * (int(recordtime + 1)))
+        rawData = self.wave.recv(self.numChannels * self.buffersize * (int(recordtime + 1)))
         # print(len(rawData)) # Note: Each second at 30Hz = 129696 data points
         # print(waveformBytesPerBlock)
         if len(rawData) % waveformBytesPerBlock != 0:
@@ -154,7 +163,7 @@ class IntanInterface:
 
             # Each block should contain 128 frames of data - process each
             # of these one-by-one
-            for _ in range(FRAMES_PER_BLOCK):
+            for _ in range(self.frames_per_block):
                 # Expect 4 bytes to be timestamp as int32.
                 rawTimestamp, rawIndex = readInt32(rawData, rawIndex)
 
@@ -171,20 +180,37 @@ class IntanInterface:
 
     def computeCWT(self, data):
         scales = np.arange(1, 128, 4)
-        wavelet = 'mexh'
 
-        return pywt.cwt(data, scales, wavelet)
+        return pywt.cwt(data, scales, self.wavelet)
+    
+    def viewCWT(self, coefs):
+        plt.figure(figsize=(12, 6))
+        plt.imshow(np.abs(coefs),
+                aspect='auto', cmap='jet', origin='lower')
+        plt.colorbar(label='Wavelet Power')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Frequency (Hz)')
+        plt.title(f'{self.wavelet} Wavelet Power Spectrum of EMG Signal')
+        plt.show()
+        
+    
+    def switchChannel(self, channelNum):
+        # Clear all outputs
+        self.cmd.sendall(b'execute clearalldataoutputs')
+        sleep(0.1)
+        
+        # Activate channel to switch to
+        fullCmd = f"set a-%03.f.tcpdataoutputenabled true" % channelNum
+        self.cmd.sendall(bytes(fullCmd, 'utf-8'))
+        sleep(0.1)
 
 if __name__ == "__main__":
-    interface = IntanInterface(('127.0.0.1', 5000), ('127.0.0.1', 5001))
-    interface.setup(recordtime=5, numChannels=1)
+    interface = IntanInterface(('127.0.0.1', 5000), ('127.0.0.1', 5001), debug=True)
+    interface.setup(recordtime=3, numChannels=1)
 
-    expected = [True] * 15 + [False] * 9
     measured = []
-    for _ in range(0, 24):
-        measured.append(interface.detectFlexing(timeframe=1))
-
-    print(expected)
-    print(measured)
-    
-    print(sum([ex == me for ex, me in zip(expected, measured)]))
+    for i in range(0, 80):
+        measure = interface.detectFlexing(timeframe=0.25)
+        print(measure)
+        measured.append(measure)
+        sleep(0.5)

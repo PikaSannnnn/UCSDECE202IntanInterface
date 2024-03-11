@@ -26,7 +26,7 @@ The Spectrogram used for Lab 5 would not work for python when I tried implementi
 Our objective is to effectively measure the frequency of high power signals per time period and classify it as flexing or resting based whether it passes a threshold. After some research, it is found that CWT has high performance results and is effective for our objective in detecting the presence of high power signals at higher frequencies. I used this to help understand and implement the CWT components: https://www.youtube.com/watch?v=qoMDpSatG7M. All references for research are provided in the [references](#references).
 
 **Choosing the correct wavelet:**
-A graph of each different wavelets are provided. The same recording data and timestamps were used for each with 60% resting and 40% flexing. The recording used was pre-captured and is the same as the EMG recording used for Lab 5 W2-5pm, provided in the reference. The frequency range was determined by `np.arange(1, 28, 4)` which gives a total of 32 frequency entries. This was the set of parameters that gave the best and clearest plot.
+A graph of each different wavelets are provided. The same recording data and timestamps were used for each with 60% resting and 40% flexing. The recording used was pre-captured and is the same as the EMG recording used for Lab 5 W2-5pm, provided in the reference. The frequency range was determined by `np.arange(1, 28, 4)` which gives a total of 32 frequency entries. This was the set of parameters that gave the best and clearest plot. After further testing, this scale is the best and focusing the frequency at 25Hz seems to the safest (observe the last 2 wavelet spectrograms for a different recording).
     <details>
         <summary>Wavelets (Click to View Plots)</summary>
         <ul>
@@ -42,6 +42,8 @@ A graph of each different wavelets are provided. The same recording data and tim
             <il><img src="wavelets\Screenshot 2024-03-09 221329.png" alt="mexh"></li>
             <il><img src="wavelets\Screenshot 2024-03-09 221337.png" alt="morl"></li>
             <il><img src="wavelets\Screenshot 2024-03-09 221347.png" alt="shannon"></li>
+            <il><img src="wavelets\record2rest.png" alt="record2rest"></li>
+            <il><img src="wavelets\record2flex.png" alt="record2flex"></li>
         </ul>
     </details>
 Based on these plots, `mexh` waveform provides the clearest distinction betwen resting and flexing, specifically at high frequency. This will be used to model all calibration and measuring. 
@@ -57,9 +59,22 @@ Trial 4 was purposely made inaccurate (~00:25). Trial 5 was calibrated to the sa
 |   4   |  225.05978  |  1104.7583  | 594.26345 |     6/6      |
 |   5   |  221.00389  |  1072.8995  | 646.95171 |    20/24*    |
 
-\* *Note: Trial 5 ended the testing at 00:54, for the 24 samples of "1 second". While observing the tests, despite setting `sleep(1)`, it was stoping at 800ms (0.8s) on intan software. This may be due to latency. The actual result was `[True] * 15 + [False] * 9` for each second as flexing occurs until ~00:50 in the recording. If we were to consider this mismatch for this, the results may be near 100% success rate if not at. Moreoever, for this latency, 1 second shall be the lowest sample period.*
+\* *Note: Trial 5 ended the testing at 00:54, for the 24 samples of "1 second". While observing the tests, despite setting `sleep(1)`, it was stoping at 800ms (0.8s) on intan software. This may be due to latency. The actual result was `[True] * 15 + [False] * 9` for each second as flexing occurs until ~00:50 in the recording. If we were to consider this mismatch for this, the results may be near 100% success rate if not at.*
 
 Immediately we can see a clearer distinction between resting and flexing state. The success rate is also much higher (100%) for each trial except for trial 5 (as mentioned in the disclaimer). For this reason, we can conclude that this method is reliable for both calibration and measuring.
+
+**Live Measuring**  
+Live measuring of an electrode will be done in 0.25 second recording periods. Since we have two electrodes, we will need to switch channels every 0.25 seconds of recording from one electrode to the other. This will give ~500ms recording periods for one full measurement. However, given a much smaller recording period (compared to 1 second above), the accuracy will be more susceptible to noise. To fix this, we'll adjust and test different threshold percentages, i.e. flexing detected is when the mean of the recorded period is > percentage of the distance between the calibrated resting and flexing mean. The value at this percentage will be determined at calibration. 
+
+For this test, we are still using only one electrode. There will be 80 tests of 250ms, for a total of 20 seconds. We will be using the Lab5 Tr9-11a recording. The calibration is performed for 3 seconds each starting at ~00:02.
+
+| Trial | Threshold % | Success Rate |
+| ----- | ----------- | ------------ |
+|   1   |     50%     |    56/80     |
+|   2   |     25%     |    49/80     |
+|   3   |     75%     |    79/80     |
+
+Given a threshold % of 75% gave the best results, this will be used for all live recordings. Moreoever, observation in the detection of flexing notes the single incorrect classification occurs at either the start or end of a flexing/resting period in the recording. Contrarily, the other %'s give misclassifications in the middle of a flexing/resting period, especially during rest which is likely due to noise.
 
 #### Method 1 Standard Deviation:
 **Notes**: Not reliable due to regular lower potentials in the waveform. Notice in both sets of trials, the standard deviation of thee flexing remained relatively close to the resting. This means at higher sample rates, the standard deviation is more likely to be incorrectly classified. This can be shown with association such that in these trial sets, the sample time was 5 seconds (the same as the calibration time), yet it still could not achieve 100% accuracy when needed. This same situation occurs with mean as it is related.
@@ -96,7 +111,9 @@ The results of both cases show a subpar success rate regardless of threshold per
 * https://math.stackexchange.com/questions/279980/difference-between-fourier-transform-and-wavelets
 * https://www.mathworks.com/help/wavelet/gs/continuous-wavelet-transform-and-scale-based-analysis.html
 * https://www.youtube.com/watch?v=qoMDpSatG7M
-* [W2-5pm Omar's EMG](c:/Users/Pika-Sannnnn/Downloads/emg_lab_omar_bicep_240221_142714.rhd)
+* [W2-5pm Omar's EMG](emg_lab_omar_bicep_240221_142714.rhd)
+* [Tr9-11am EMG](emg1_240222_091915.rhd)
+
 
 ### Notes:
 Recorded data is in microV for potential over seconds
