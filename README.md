@@ -113,10 +113,8 @@ The results of both cases show a subpar success rate regardless of threshold per
 * https://www.youtube.com/watch?v=qoMDpSatG7M
 * [W2-5pm Omar's EMG](emg_lab_omar_bicep_240221_142714.rhd)
 * [Tr9-11am EMG](emg1_240222_091915.rhd)
-
+* https://docs.python.org/3/library/multiprocessing.html
+* https://wiki.python.org/moin/BitwiseOperators
 
 ### Notes:
-Recorded data is in microV for potential over seconds
-
-Please do not use without permission.  
-\- Stephen Dong
+Please do not use without permission.

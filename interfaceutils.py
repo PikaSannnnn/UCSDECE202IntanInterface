@@ -1,3 +1,26 @@
+#########################################
+#   Interface Utils (User Defined)
+#
+
+class SetupReplaceReject(Exception):
+    """Exception returned when an IntanInterface object was already setup and locked
+    to a channel, but setup is being called again to override without specifying
+    to override.
+    
+    This is a warning error that is thrown as it'll greatly affect recording.
+    """
+    
+class ChannelChangeReject(Exception):
+    """Exception returned when an IntanInterface object is attempting to change or reactivate a channel
+    while locked to another. Normally, changing should not occur unless self.__channel was changed externally.
+    
+    This is a warning error that is thrown as it'll greatly affect recording.
+    """
+
+#########################################
+#   Intan Utils (Defined by Intan Software)
+#
+
 class GetSampleRateFailure(Exception):
     """Exception returned when the TCP socket failed to yield the sample rate
     as reported by the RHX software.

@@ -1,5 +1,5 @@
 import socket
-from intanutils import *
+from interfaceutils import *
 from time import sleep
 import numpy as np
 import pywt
@@ -9,34 +9,64 @@ HOST = '127.0.0.1'
 PORT = 5001
 
 class IntanInterface:
-    def __init__(self, cmdAddrPort, waveAddrPort, focusFreq=25, debug=False):
+    def __init__(self, cmdAddrPort, waveAddrPort, timeout=5, debug=False):
+        # Init immutable constants.
         self.__debug = debug
-        self.focusFreq = focusFreq
-
-        # Connect to TCP command server - default home IP address at port 5000.
-        print('Connecting to TCP command server...')
-        self.cmd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.cmd.connect(cmdAddrPort)
-
-        # Connect to TCP waveform server - default home IP address at port 5001.
-        print('Connecting to TCP waveform server...')
-        self.wave = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.wave.connect(waveAddrPort)
+        self.__setup_lock = False
         
-        # Init any constant vars NOTE: Change here to reflect to all objects
+        # Init any mutable constant vars NOTE: Change here to reflect to all objects, or change externally for single object
         self.buffersize = 200000
         self.frames_per_block = 128
         self.wavelet = 'mexh'
         self.threshRatio = 0.75
+
+        # Connect to TCP command server - default home IP address at port 5000.
+        print('Connecting to TCP command server...')
+        try: 
+            self.cmd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.cmd.settimeout(timeout)  # Set connection timeout
+            self.__debugOut(f"Attempting to connect to {cmdAddrPort}. Timeout = 5s")
+            self.cmd.connect(cmdAddrPort)
+        except socket.timeout:
+            print("Connection timeout. Please make sure TCP command port is connected on Intan")
+            exit(1)
+        except Exception as e:
+            print(f"Some error occured: {e}.\nPlease check your TCP waveform port on Intan.")
+            exit(1)
+        print(f"Connected to {cmdAddrPort[0]}:{cmdAddrPort[1]}")
+
+        # Connect to TCP waveform server - default home IP address at port 5001.
+        print('Connecting to TCP waveform server...')
+        try:
+            self.wave = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.wave.settimeout(timeout)  # Set connection timeout
+            self.__debugOut(f"Attempting to connect to {waveAddrPort}. Timeout = 5s")
+            self.wave.connect(waveAddrPort)
+        except socket.timeout:
+            print("Connection timeout. Please make sure TCP waveform port is connected on Intan.")
+            exit(1)
+        except Exception as e:
+            print(f"Some error occured: {e}.\nPlease check your TCP waveform port on Intan.")
+            exit(1)
+        print(f"Connected to {cmdAddrPort[0]}:{cmdAddrPort[1]}")
     
     def setup(self, **kwargs):
         """
         Opt Inputs:
-            numChannels: number of recording channels
+            channel: channel number
             recordtime: recording time; this will be used for calibration
         """
-        self.numChannels = 1 if 'numChannels' not in kwargs else kwargs['numChannels']
+        override = False if 'override' not in kwargs else kwargs['override']
+        if self.__setup_lock and not override:
+            self.__debugOut("Re-setup blocked by __setup_lock. To re-setup, use override=True.")
+            raise SetupReplaceReject(
+                'Reject action to re-setup/calibrate an IntanInterface object.'
+            )
+        
         recordtime = 1 if 'recordtime' not in kwargs else kwargs['recordtime']
+        self.__channel = 0 if 'channel' not in kwargs else kwargs['channel']
+        self.focusfreq = 25 if 'focusfreq' not in kwargs else kwargs['focusfreq']
+        self.__debugOut(f"Setup: recordtime={recordtime}, channel={self.__channel}, focusfreq={self.focusfreq}")
         
         ## Setup Intan Software
         # Query runmode from RHX software.
@@ -45,6 +75,7 @@ class IntanInterface:
         
         # If controller is running, stop it.
         if commandReturn != "Return: RunMode Stop":
+            self.__debugOut("Stopping controller...")
             self.cmd.sendall(b'set runmode stop')
             # Allow time for RHX software to accept this command before the next.
             sleep(0.1)
@@ -61,20 +92,33 @@ class IntanInterface:
         
         self.timestep = 1 / float(commandReturn[len(expectedReturnString):])
         
-        self.calibrations = []
-        for _ in range(0, self.numChannels):
-            self.calibrations.append(self.calibrate(recordtime=recordtime))
+        # Activate Channel
+        self.activateChannel()
+        
+        # Calibrate electrode 
+        self.calibrate(recordtime=recordtime)
+        
+        self.__setup_lock = True
 
-    def calibrate(self, recordtime=1):
+    def calibrate(self, **kwargs):
         """Time for calibration **per** action, i.e. if recordtime=5, it is 5 seconds for resting and 5 seconds for flexing
         
         recordtime: Time for calibration per action; thus, total calibration recordtime is recordtime * 2 (+ 16 seconds buffer/prep)
         
         Returns: 
         """
+        override = False if 'override' not in kwargs else kwargs['override']
+        if self.__setup_lock and not override:
+            self.__debugOut("Re-calibration blocked by __setup_lock. To re-calibrate, use override=True.")
+            raise ChannelChangeReject(
+                'Reject action to change channel.'
+            )
+            
+        recordtime = 1 if 'recordtime' not in kwargs else kwargs['recordtime']
+        self.__debugOut(f"Calibration: recordtime={recordtime}, threshRatio={self.threshRatio}")
+        
         calibrations = {}
         modes = ["Resting", "Flexing"]
-        
         # Run controller for 10 seconds for calibration
         for mode in modes:
             print(f"Running {mode} calibration for {recordtime} seconds. Please begin {mode}.")
@@ -87,7 +131,7 @@ class IntanInterface:
             
             # run for `recordtime` amount of seconds
             self.record(recordtime)
-            print("Finished...")
+            print("Finished.")
             sleep(2)
             
             # Read waveform
@@ -97,8 +141,8 @@ class IntanInterface:
             coef, freq = self.computeCWT(data)
 
             # Comput mean at object's freq
-            mean = np.mean(np.abs(coef[self.focusFreq]))
-            print("Mean Power: ", mean)
+            mean = np.mean(np.abs(coef[self.focusfreq]))
+            self.__debugOut(f"Mean {mode} Power: ", mean)
             calibrations[mode] = mean
             
             # Debug view CWT Spectrogram
@@ -107,7 +151,7 @@ class IntanInterface:
 
         threshDiff = (calibrations['Flexing'] - calibrations['Resting']) * self.threshRatio
         self.flexThresh = calibrations['Resting'] + threshDiff
-        print("FlexThres: ", self.flexThresh)
+        print("Threshold for Flexing classification: ", self.flexThresh)
 
     def detectFlexing(self, timeframe=1):
         timestamps, data = self.recordRead(timeframe)
@@ -116,7 +160,8 @@ class IntanInterface:
         coef, freq = self.computeCWT(data)
 
         # Comput mean at object's freq
-        mean = np.mean(np.abs(coef[self.focusFreq]))
+        mean = np.mean(np.abs(coef[self.focusfreq]))
+        self.__debugOut(f"Sample Mean Power: {mean}")
 
         return mean > self.flexThresh
 
@@ -125,25 +170,27 @@ class IntanInterface:
         return self.readWaveform(recordtime)
 
     def record(self, recordtime):
+        self.__debugOut("Start recording")
         self.cmd.sendall(b'set runmode run')
         sleep(recordtime)
+        self.__debugOut("Stop recording")
         self.cmd.sendall(b'set runmode stop')
     
     def readWaveform(self, recordtime):
-        waveformBytesPerFrame = 4 + (2 * self.numChannels)
+        waveformBytesPerFrame = 4 + 2
         waveformBytesPerBlock = self.frames_per_block * waveformBytesPerFrame + 4    # 4 bytes = magic number;
         
         # Read waveform data
-        rawData = self.wave.recv(self.numChannels * self.buffersize * (int(recordtime + 1)))
-        # print(len(rawData)) # Note: Each second at 30Hz = 129696 data points
-        # print(waveformBytesPerBlock)
+        rawData = self.wave.recv(self.buffersize * (int(recordtime + 1)))
+        self.__debugOut("Raw data length:", len(rawData)) # Note: Each second at 30Hz = 129696 data points
+        self.__debugOut("Waveform Bytes Per Block:", waveformBytesPerBlock)
         if len(rawData) % waveformBytesPerBlock != 0:
             raise InvalidReceivedDataSize(
                 'An unexpected amount of data arrived that is not an integer '
                 'multiple of the expected data size per block.'
             )
         numBlocks = int(len(rawData) / waveformBytesPerBlock)
-        # print(numBlocks)
+        self.__debugOut("# Blocks:", numBlocks)
 
         # Index used to read the raw data that came in through the TCP socket.
         rawIndex = 0
@@ -180,6 +227,7 @@ class IntanInterface:
 
     def computeCWT(self, data):
         scales = np.arange(1, 128, 4)
+        self.__debugOut("Scale:", scales)
 
         return pywt.cwt(data, scales, self.wavelet)
     
@@ -194,23 +242,35 @@ class IntanInterface:
         plt.show()
         
     
-    def switchChannel(self, channelNum):
+    def activateChannel(self, override=False):
+        if self.__setup_lock and not override:
+            raise ChannelChangeReject(
+                'Reject action to re-active/change channel. Doing this does not re-setup/calibrate.\nIf you are sure of this, use override=True.'
+            )
+        
         # Clear all outputs
+        self.__debugOut("Clearing All Data Outputs")
         self.cmd.sendall(b'execute clearalldataoutputs')
         sleep(0.1)
         
-        # Activate channel to switch to
-        fullCmd = f"set a-%03.f.tcpdataoutputenabled true" % channelNum
+        # Activate channel to switch to this object's channel
+        fullCmd = f"set a-%03.f.tcpdataoutputenabled true" % self.__channel
         self.cmd.sendall(bytes(fullCmd, 'utf-8'))
         sleep(0.1)
+        
+        print(f"Activated channel A-%03.f" % self.__channel)
+        
+    def __debugOut(self, *args):
+        if self.__debug:
+            print("[DEBUG]", *args)
 
 if __name__ == "__main__":
     interface = IntanInterface(('127.0.0.1', 5000), ('127.0.0.1', 5001), debug=True)
-    interface.setup(recordtime=3, numChannels=1)
+    interface.setup(recordtime=3, channel=23)
 
     measured = []
     for i in range(0, 80):
         measure = interface.detectFlexing(timeframe=0.25)
-        print(measure)
         measured.append(measure)
         sleep(0.5)
+    print(measured)
