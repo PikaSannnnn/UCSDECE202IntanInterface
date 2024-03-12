@@ -48,7 +48,7 @@ class IntanInterface:
         except Exception as e:
             print(f"Some error occured: {e}.\nPlease check your TCP waveform port on Intan.")
             exit(1)
-        print(f"Connected to {cmdAddrPort[0]}:{cmdAddrPort[1]}")
+        print(f"Connected to {waveAddrPort[0]}:{waveAddrPort[1]}")
     
     def setup(self, **kwargs):
         """

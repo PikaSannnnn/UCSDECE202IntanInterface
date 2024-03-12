@@ -6,8 +6,8 @@ This is the Intan Interface for the white tiles demo for ECE202 Group 7. The pur
 * [x] Calibration
     * Determine resting potential range
     * Determine threshold for "flexing" potential minimum
-* [ ] Read from 2 channels
-* [ ] Link to game movements
+* [x] Read from 2 channels (Done via multiprocessing and 2 Intan Softwares)
+* [x] Link to game movements
 
 ### Sample Waveforms:
 <div style="display: flex;">
@@ -114,6 +114,7 @@ The results of both cases show a subpar success rate regardless of threshold per
 * [W2-5pm Omar's EMG](emg_lab_omar_bicep_240221_142714.rhd)
 * [Tr9-11am EMG](emg1_240222_091915.rhd)
 * https://docs.python.org/3/library/multiprocessing.html
+    * Note: There is a [bug](https://github.com/python/cpython/issues/94765) on new python versions with certain MacOS and Linux versions.
 * https://wiki.python.org/moin/BitwiseOperators
 
 ### Notes:
