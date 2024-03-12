@@ -11,16 +11,18 @@ This is the Intan Interface for the white tiles demo for ECE202 Group 7. The pur
 
 ### Sample Waveforms:
 <div style="display: flex;">
-    <img src="image.png">
-Figure 1: Resting Waveform
-![Resting Sample](image.png)!
-
-Figure 2: Flexing Waveform
-![Flexing Sample](image-2.png)
+    <div>
+        Figure 1: Resting Waveform
+        <img src="waveforms\resting.png">
+    </div>
+    <div>
+        Figure 2: Flexing Waveform
+        <img src="waveforms\flexing.png">
+    </div>
 </div>
 
 ### Calibration:
-#### Method 2 CWT Frequency-Time Power Mean Analysis:
+#### Method 2: CWT Frequency-Time Power Mean Analysis
 The Spectrogram used for Lab 5 would not work for python when I tried implementing it. After a couple of hours of researching, I found a useful method: **cwt**, from the `PyWavelets` library. Countinuous Wavelet Transform (CWT) is used  because we would like to classify flexing depending on the frequency of high power signals. If we refer back to Figure 2, we can observe higher peaks compared to Figure 1 for resting. This decision was made after the inconsistency and inaccuracy of method 1, which was primarily caused by the presence of low potential points in the waveform in both states. 
 
 Our objective is to effectively measure the frequency of high power signals per time period and classify it as flexing or resting based whether it passes a threshold. After some research, it is found that CWT has high performance results and is effective for our objective in detecting the presence of high power signals at higher frequencies. I used this to help understand and implement the CWT components: https://www.youtube.com/watch?v=qoMDpSatG7M. All references for research are provided in the [references](#references).
@@ -30,18 +32,18 @@ A graph of each different wavelets are provided. The same recording data and tim
     <details>
         <summary>Wavelets (Click to View Plots)</summary>
         <ul>
-            <il><img src="wavelets\Screenshot 2024-03-09 221132.png" alt="cgau1"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221140.png" alt="cgau2"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221155.png" alt="cgau4"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221201.png" alt="cgau5"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221209.png" alt="cgau6"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221231.png" alt="cmor"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221240.png" alt="fbsp"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221249.png" alt="gaus1"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221303.png" alt="gaus2"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221329.png" alt="mexh"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221337.png" alt="morl"></li>
-            <il><img src="wavelets\Screenshot 2024-03-09 221347.png" alt="shannon"></li>
+            <il><img src="wavelets\cgau1.png" alt="cgau1"></li>
+            <il><img src="wavelets\cgau2.png" alt="cgau2"></li>
+            <il><img src="wavelets\cgau4.png" alt="cgau4"></li>
+            <il><img src="wavelets\cgau5.png" alt="cgau5"></li>
+            <il><img src="wavelets\cgau6.png" alt="cgau6"></li>
+            <il><img src="wavelets\cmor.png" alt="cmor"></li>
+            <il><img src="wavelets\fbsp.png" alt="fbsp"></li>
+            <il><img src="wavelets\gaus1" alt="gaus1"></li>
+            <il><img src="wavelets\gaus2.png" alt="gaus2"></li>
+            <il><img src="wavelets\mexh.png" alt="mexh"></li>
+            <il><img src="wavelets\morl.png" alt="morl"></li>
+            <il><img src="wavelets\shan.png" alt="shannon"></li>
             <il><img src="wavelets\record2rest.png" alt="record2rest"></li>
             <il><img src="wavelets\record2flex.png" alt="record2flex"></li>
         </ul>
@@ -76,7 +78,7 @@ For this test, we are still using only one electrode. There will be 80 tests of 
 
 Given a threshold % of 75% gave the best results, this will be used for all live recordings. Moreoever, observation in the detection of flexing notes the single incorrect classification occurs at either the start or end of a flexing/resting period in the recording. Contrarily, the other %'s give misclassifications in the middle of a flexing/resting period, especially during rest which is likely due to noise.
 
-#### Method 1 Standard Deviation:
+#### Method 1: Standard Deviation
 **Notes**: Not reliable due to regular lower potentials in the waveform. Notice in both sets of trials, the standard deviation of thee flexing remained relatively close to the resting. This means at higher sample rates, the standard deviation is more likely to be incorrectly classified. This can be shown with association such that in these trial sets, the sample time was 5 seconds (the same as the calibration time), yet it still could not achieve 100% accuracy when needed. This same situation occurs with mean as it is related.
 
 Calibration detects the standard deviation of potential of both resting and flexing. A lower threshold of which the standard deviation must exceed to be considered "flexing" is computed as a percentage between the two state's standard deviation. Two version of standard deviation were calculated, tested, and compared under three trials of the same sample EMG recording:
@@ -111,8 +113,8 @@ The results of both cases show a subpar success rate regardless of threshold per
 * https://math.stackexchange.com/questions/279980/difference-between-fourier-transform-and-wavelets
 * https://www.mathworks.com/help/wavelet/gs/continuous-wavelet-transform-and-scale-based-analysis.html
 * https://www.youtube.com/watch?v=qoMDpSatG7M
-* [W2-5pm Omar's EMG](emg_lab_omar_bicep_240221_142714.rhd)
-* [Tr9-11am EMG](emg1_240222_091915.rhd)
+* [W2-5pm EMG](recordings/bicep_240221_142714.rhd)
+* [Tr9-11am EMG](recordings/emg1_240222_091915.rhd)
 * https://docs.python.org/3/library/multiprocessing.html
     * Note: There is a [bug](https://github.com/python/cpython/issues/94765) on new python versions with certain MacOS and Linux versions.
 * https://wiki.python.org/moin/BitwiseOperators
