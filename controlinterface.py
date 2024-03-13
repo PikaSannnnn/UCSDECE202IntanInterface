@@ -25,10 +25,10 @@ if __name__ == "__main__":
     # Repeat until quit
     start = time()
     # while True:
-    for _ in range(0, 40):  # 0.5 * 80 = 20s
+    for _ in range(0, 40):
         outputs = mp.Queue()
         
-        # Start thread of both armsuu
+        # Start thread of both arms
         for arm , interface in arms.items():
             p = mp.Process(target=multiprocess_arm, args=(interface, timeframe, arm, outputs))
             processes.append(p)
@@ -38,19 +38,13 @@ if __name__ == "__main__":
         for p in processes:
             p.join()
             
-        flex_bits = 0x00
-        arm_bits = {'left': 0x10, 'right': 0x01}
+        controls = {}
         # Check thread output (if arm was flexed or not)
         for _ in range(0, 2):
             arm, flex = outputs.get(False)
-            if flex:
-                flex_bits |= arm_bits[arm]
-                
-        # Game Commands
-        print("---")
-        if flex_bits & 0x01 == 0x01:
-            print("Move")
-        if flex_bits & 0x10 == 0x10:
-            print("Click")
+            controls[arm] = flex
+            
+        with open('control.csv', 'w') as file:
+            file.write(f"{controls['left']}, {controls['right']}")
             
     print("Elapsed:", time() - start)
