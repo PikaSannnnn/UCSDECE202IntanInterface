@@ -1,6 +1,7 @@
 from intaninterface import IntanInterface
 import multiprocessing as mp
 from time import time
+import os
 
 def multiprocess_arm(interface, timeframe, arm, q):
     measure = interface.detectFlexing(timeframe=timeframe)
@@ -24,8 +25,8 @@ if __name__ == "__main__":
 
     # Repeat until quit
     start = time()
-    # while True:
-    for _ in range(0, 40):
+    controlqueue = []
+    while True:
         outputs = mp.Queue()
         
         # Start thread of both arms
@@ -44,7 +45,11 @@ if __name__ == "__main__":
             arm, flex = outputs.get(False)
             controls[arm] = flex
             
-        with open('control.csv', 'w') as file:
-            file.write(f"{controls['left']}, {controls['right']}")
+        controlqueue.append(f"{controls['left']}, {controls['right']}")
+        
+        if not os.path.exists('control.csv'):
+            with open('control.csv', 'w') as file:
+                file.write(controlqueue.pop(0))
+        
             
     print("Elapsed:", time() - start)
