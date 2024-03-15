@@ -1,5 +1,5 @@
 from intaninterface import IntanInterface
-from time import time
+from time import time, sleep
 import os
 
 if __name__ == "__main__":
@@ -35,6 +35,7 @@ if __name__ == "__main__":
         print(measure)    
         
         with open('control.csv', 'w') as file:
-            file.write(measure)
+            file.write(str(measure))
+        sleep(0.2)
         
     print("Elapsed:", time() - start)
